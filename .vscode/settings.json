@@ -4,6 +4,7 @@
         "list": "cpp",
         "optional": "cpp",
         "variant": "cpp",
-        "vector": "cpp"
+        "vector": "cpp",
+        "iostream": "cpp"
     }
 }

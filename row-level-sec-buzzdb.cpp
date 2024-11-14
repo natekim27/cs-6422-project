@@ -249,8 +249,8 @@ public:
         return role;
     }
 
-    bool hasAccessTo(Tuple& tuple) {
-        return role.canAccess(tuple.getAccessLevel());
+    bool hasAccessTo(int tuple_access_level) {
+        return role.canAccess(tuple_access_level);
     }
 };
 
@@ -938,10 +938,11 @@ private:
     std::unique_ptr<IPredicate> predicate;
     bool has_next;
     std::vector<std::unique_ptr<Field>> currentOutput; // Store the current output here
+    User& user; // Current user calling the query
 
 public:
-    SelectOperator(Operator& input, std::unique_ptr<IPredicate> predicate)
-        : UnaryOperator(input), predicate(std::move(predicate)), has_next(false) {}
+    SelectOperator(Operator& input, std::unique_ptr<IPredicate> predicate, User& user)
+        : UnaryOperator(input), predicate(std::move(predicate)), user(user), has_next(false) {}
 
     void open() override {
         input->open();
@@ -952,7 +953,9 @@ public:
     bool next() override {
         while (input->next()) {
             const auto& output = input->getOutput(); // Temporarily hold the output
-            if (predicate->check(output)) {
+
+            int tuple_access_level = output.back()->asInt(); // Access level field is last field
+            if (user.hasAccessTo(tuple_access_level) && predicate->check(output)) {
                 // If the predicate is satisfied, store the output in the member variable
                 currentOutput.clear(); // Clear previous output
                 for (const auto& field : output) {
@@ -1002,6 +1005,8 @@ private:
     std::vector<Tuple> output_tuples; // Use your Tuple class for output
     size_t output_tuples_index = 0;
 
+    User& user; // User calling the query
+
     struct FieldVectorHasher {
         std::size_t operator()(const std::vector<Field>& fields) const {
             std::size_t hash = 0;
@@ -1042,8 +1047,8 @@ private:
 
 
 public:
-    HashAggregationOperator(Operator& input, std::vector<size_t> group_by_attrs, std::vector<AggrFunc> aggr_funcs)
-        : UnaryOperator(input), group_by_attrs(group_by_attrs), aggr_funcs(aggr_funcs) {}
+    HashAggregationOperator(Operator& input, std::vector<size_t> group_by_attrs, std::vector<AggrFunc> aggr_funcs, User& user)
+        : UnaryOperator(input), group_by_attrs(group_by_attrs), aggr_funcs(aggr_funcs), user(user) {}
 
     void open() override {
         input->open(); // Ensure the input operator is opened
@@ -1055,6 +1060,12 @@ public:
 
         while (input->next()) {
             const auto& tuple = input->getOutput(); // Assume getOutput returns a reference to the current tuple
+
+            int tuple_access_level = tuple.back()->asInt(); // Access level field is last field
+            // Continue to next tuple if user doesn't have access
+            if (!user.hasAccessTo(tuple_access_level)) {
+                continue;
+            }
 
             // Extract group keys and initialize aggregation values
             std::vector<Field> group_keys;
@@ -1270,7 +1281,8 @@ void prettyPrint(const QueryComponents& components) {
 }
 
 void executeQuery(const QueryComponents& components, 
-                  BufferManager& buffer_manager) {
+                  BufferManager& buffer_manager,
+                  User& user) {
     // Stack allocation of ScanOperator
     ScanOperator scanOp(buffer_manager);
 
@@ -1302,7 +1314,7 @@ void executeQuery(const QueryComponents& components,
         complexPredicate->addPredicate(std::move(predicate2));
 
         // Using std::optional to manage the lifetime of SelectOperator
-        selectOpBuffer.emplace(*rootOp, std::move(complexPredicate));
+        selectOpBuffer.emplace(*rootOp, std::move(complexPredicate), user);
         rootOp = &*selectOpBuffer;
     }
 
@@ -1317,7 +1329,7 @@ void executeQuery(const QueryComponents& components,
         };
 
         // Using std::optional to manage the lifetime of HashAggregationOperator
-        hashAggOpBuffer.emplace(*rootOp, groupByAttrs, aggrFuncs);
+        hashAggOpBuffer.emplace(*rootOp, groupByAttrs, aggrFuncs, user);
         rootOp = &*hashAggOpBuffer;
     }
 
@@ -1475,7 +1487,7 @@ public:
 
     }
 
-    void executeQueries() {
+    void executeQueries(User& user) {
 
         std::vector<std::string> test_queries = {
             "SUM{1} GROUP BY {1} WHERE {1} > 2 and {1} < 6"
@@ -1484,7 +1496,7 @@ public:
         for (const auto& query : test_queries) {
             auto components = parseQuery(query);
             //prettyPrint(components);
-            executeQuery(components, buffer_manager);
+            executeQuery(components, buffer_manager, user);
         }
 
     }
@@ -1509,10 +1521,17 @@ int main() {
             db.insert(field1, field2, field3);
         }
     }
+    Role regularRole("Regular", 1);
+    Role moderatorRole("Moderator", 2);
+    Role adminRole("Admin", 3);
+
+    User user_regular("regular123", regularRole);
+    User user_moderator("moderator123", moderatorRole);
+    User user_nkim337("nkim337", adminRole);
 
     auto start = std::chrono::high_resolution_clock::now();
 
-    db.executeQueries();
+    db.executeQueries(user_nkim337);
 
     auto end = std::chrono::high_resolution_clock::now();
 
