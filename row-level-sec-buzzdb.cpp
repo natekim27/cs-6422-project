@@ -158,6 +158,17 @@ public:
         return size;
     }
 
+    // Retrieve the access level of the tuple
+    int getAccessLevel() const {
+        for (const auto& field : fields) {
+            if (field->asInt() >= 1 && field->asInt() <= 3) {
+                return field->asInt();
+            }
+        }
+        // No valid access level found
+        return -1; 
+    }
+
     std::string serialize() {
         std::stringstream buffer;
         buffer << fields.size() << ' ';
@@ -196,6 +207,50 @@ public:
             std::cout << " ";
         }
         std::cout << "\n";
+    }
+};
+
+class Role {
+private:
+    std::string role_name;
+    int role_access_level;
+
+public:
+    Role(const std::string& name, int level) 
+        : role_name(name), role_access_level(level) {}
+
+    const std::string& getRoleName() {
+        return role_name;
+    }
+
+    int getRoleAccessLevel() {
+        return role_access_level;
+    }
+
+    bool canAccess(int tuple_access_level) {
+        return role_access_level >= tuple_access_level;
+    }
+};
+
+class User {
+private:
+    std::string user_id;
+    Role role;
+
+public:
+    User(const std::string& id, Role& user_role) 
+        : user_id(id), role(user_role) {}
+
+    const std::string& getUserId() {
+        return user_id;
+    }
+
+    const Role& getRole() {
+        return role;
+    }
+
+    bool hasAccessTo(Tuple& tuple) {
+        return role.canAccess(tuple.getAccessLevel());
     }
 };
 
@@ -1380,7 +1435,7 @@ public:
     }
 
     // insert function
-    void insert(int key, int value) {
+    void insert(int key, int value, int access_level) {
         tuple_insertion_attempt_counter += 1;
 
         // Create a new tuple with the given key and value
@@ -1392,10 +1447,16 @@ public:
         auto float_field = std::make_unique<Field>(float_val);
         auto string_field = std::make_unique<Field>("buzzdb");
 
+        // Field for tuple access level
+        auto access_level_field = std::make_unique<Field>(access_level);
+
         newTuple->addField(std::move(key_field));
         newTuple->addField(std::move(value_field));
         newTuple->addField(std::move(float_field));
         newTuple->addField(std::move(string_field));
+
+        // Add access level field to tuple
+        newTuple->addField(std::move(access_level_field));
 
         InsertOperator insertOp(buffer_manager);
         insertOp.setTupleToInsert(std::move(newTuple));
