@@ -1502,11 +1502,11 @@ int main() {
         return 1;
     }
 
-    int field1, field2;
+    int field1, field2, field3;
     int i = 0;
-    while (inputFile >> field1 >> field2) {
+    while (inputFile >> field1 >> field2 >> field3) {
         if(i++ % 10000 == 0){
-            db.insert(field1, field2);
+            db.insert(field1, field2, field3);
         }
     }
 
