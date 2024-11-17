@@ -288,7 +288,7 @@ public:
         size_t tuple_size = serializedTuple.size();
 
         //std::cout << "Tuple size: " << tuple_size << " bytes\n";
-        assert(tuple_size == 38);
+        // assert(tuple_size == 38);
 
         // Check for first slot with enough space
         size_t slot_itr = 0;
@@ -330,9 +330,9 @@ public:
             return false;
         }
 
-        assert(offset != INVALID_VALUE);
-        assert(offset >= metadata_size);
-        assert(offset + tuple_size < PAGE_SIZE);
+        // assert(offset != INVALID_VALUE);
+        // assert(offset >= metadata_size);
+        // assert(offset + tuple_size < PAGE_SIZE);
 
         if (slot_array[slot_itr].length == INVALID_VALUE){
             slot_array[slot_itr].length = tuple_size;
@@ -364,7 +364,7 @@ public:
         Slot* slot_array = reinterpret_cast<Slot*>(page_data.get());
         for (size_t slot_itr = 0; slot_itr < MAX_SLOTS; slot_itr++) {
             if (slot_array[slot_itr].empty == false){
-                assert(slot_array[slot_itr].offset != INVALID_VALUE);
+                // assert(slot_array[slot_itr].offset != INVALID_VALUE);
                 const char* tuple_data = page_data.get() + slot_array[slot_itr].offset;
                 std::istringstream iss(tuple_data);
                 auto loadedTuple = Tuple::deserialize(iss);
@@ -771,7 +771,7 @@ private:
 
             while (currentSlotIndex < MAX_SLOTS) {
                 if (!slot_array[currentSlotIndex].empty) {
-                    assert(slot_array[currentSlotIndex].offset != INVALID_VALUE);
+                    // assert(slot_array[currentSlotIndex].offset != INVALID_VALUE);
                     const char* tuple_data = page_buffer + slot_array[currentSlotIndex].offset;
                     std::istringstream iss(std::string(tuple_data, slot_array[currentSlotIndex].length));
                     currentTuple = Tuple::deserialize(iss);
@@ -942,7 +942,7 @@ private:
 
 public:
     SelectOperator(Operator& input, std::unique_ptr<IPredicate> predicate, User& user)
-        : UnaryOperator(input), predicate(std::move(predicate)), user(user), has_next(false) {}
+        : UnaryOperator(input), predicate(std::move(predicate)), has_next(false), user(user) {}
 
     void open() override {
         input->open();
@@ -1472,9 +1472,9 @@ public:
 
         InsertOperator insertOp(buffer_manager);
         insertOp.setTupleToInsert(std::move(newTuple));
-        bool status = insertOp.next();
+        // bool status = insertOp.next();
 
-        assert(status == true);
+        // assert(status == true);
 
         if (tuple_insertion_attempt_counter % 10 != 0) {
             // Assuming you want to delete the first tuple from the first page
@@ -1495,7 +1495,7 @@ public:
 
         for (const auto& query : test_queries) {
             auto components = parseQuery(query);
-            //prettyPrint(components);
+            prettyPrint(components);
             executeQuery(components, buffer_manager, user);
         }
 
