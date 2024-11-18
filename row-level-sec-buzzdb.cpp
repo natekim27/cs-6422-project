@@ -241,11 +241,11 @@ public:
     User(const std::string& id, Role& user_role) 
         : user_id(id), role(user_role) {}
 
-    const std::string& getUserId() {
+    std::string& getUserId() {
         return user_id;
     }
 
-    const Role& getRole() {
+    Role& getRole() {
         return role;
     }
 
@@ -1536,6 +1536,7 @@ int main() {
 
     auto start = std::chrono::high_resolution_clock::now();
 
+    std::cout << "User: " + user_regular.getUserId() + " | " + "Permission Level: " + std::to_string(user_regular.getRole().getRoleAccessLevel()) << std::endl;
     db.executeQueries(user_regular);
 
     auto end = std::chrono::high_resolution_clock::now();
@@ -1549,7 +1550,7 @@ int main() {
     std::cout<<"-------------------------------------------------"<<std::endl;
 
     start = std::chrono::high_resolution_clock::now();
-
+    std::cout << "User: " + user_moderator.getUserId() + " | " + "Permission Level: " + std::to_string(user_moderator.getRole().getRoleAccessLevel()) << std::endl;
     db.executeQueries(user_moderator);
 
     end = std::chrono::high_resolution_clock::now();
@@ -1563,6 +1564,7 @@ int main() {
     std::cout<<"-------------------------------------------------"<<std::endl;
     
     start = std::chrono::high_resolution_clock::now();
+    std::cout << "User: " + user_nkim337.getUserId() + " | " + "Permission Level: " + std::to_string(user_nkim337.getRole().getRoleAccessLevel()) << std::endl;
 
     db.executeQueries(user_nkim337);
 
