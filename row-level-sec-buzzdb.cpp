@@ -377,7 +377,7 @@ public:
     }
 };
 
-const std::string database_filename = "buzzdb.dat";
+const std::string database_filename = "buzzdb-row-level-sec.dat";
 
 class StorageManager {
 public:    
@@ -955,7 +955,7 @@ public:
             const auto& output = input->getOutput(); // Temporarily hold the output
 
             int tuple_access_level = output.back()->asInt(); // Access level field is last field
-            if (user.hasAccessTo(tuple_access_level) && predicate->check(output)) {
+            if (user.hasAccessTo(tuple_access_level) && (predicate == nullptr || predicate->check(output))) {
                 // If the predicate is satisfied, store the output in the member variable
                 currentOutput.clear(); // Clear previous output
                 for (const auto& field : output) {
@@ -1293,6 +1293,9 @@ void executeQuery(const QueryComponents& components,
     std::optional<SelectOperator> selectOpBuffer;
     std::optional<HashAggregationOperator> hashAggOpBuffer;
 
+    // Apply row filtering through SelectOperator
+    std::unique_ptr<IPredicate> predicate = nullptr;
+
     // Apply WHERE conditions
     if (components.whereAttributeIndex != -1) {
         // Create simple predicates with comparison operators
@@ -1313,10 +1316,12 @@ void executeQuery(const QueryComponents& components,
         complexPredicate->addPredicate(std::move(predicate1));
         complexPredicate->addPredicate(std::move(predicate2));
 
-        // Using std::optional to manage the lifetime of SelectOperator
-        selectOpBuffer.emplace(*rootOp, std::move(complexPredicate), user);
-        rootOp = &*selectOpBuffer;
+        predicate = std::move(complexPredicate);
     }
+
+    // Using std::optional to manage the lifetime of SelectOperator
+    selectOpBuffer.emplace(*rootOp, std::move(predicate), user);
+    rootOp = &*selectOpBuffer;
 
     // Apply SUM or GROUP BY operation
     if (components.sumOperation || components.groupBy) {
@@ -1472,17 +1477,18 @@ public:
 
         InsertOperator insertOp(buffer_manager);
         insertOp.setTupleToInsert(std::move(newTuple));
-        // bool status = insertOp.next();
+        bool status = insertOp.next();
+        std::cout<<status<<std::endl;
 
         // assert(status == true);
 
-        if (tuple_insertion_attempt_counter % 10 != 0) {
-            // Assuming you want to delete the first tuple from the first page
-            DeleteOperator delOp(buffer_manager, 0, 0); 
-            if (!delOp.next()) {
-                std::cerr << "Failed to delete tuple." << std::endl;
-            }
-        }
+        // if (tuple_insertion_attempt_counter % 10 != 0) {
+        //     // Assuming you want to delete the first tuple from the first page
+        //     DeleteOperator delOp(buffer_manager, 0, 0); 
+        //     if (!delOp.next()) {
+        //         std::cerr << "Failed to delete tuple." << std::endl;
+        //     }
+        // }
 
 
     }
@@ -1490,7 +1496,9 @@ public:
     void executeQueries(User& user) {
 
         std::vector<std::string> test_queries = {
-            "SUM{1} GROUP BY {1} WHERE {1} > 2 and {1} < 6"
+            // "SUM{1} GROUP BY {1} WHERE {1} > 2 and {1} < 6",
+            "{1}, {2}, {3}",
+            // "SUM{2} WHERE {1} > 1 and {1} < 11"
         };
 
         for (const auto& query : test_queries) {
@@ -1515,11 +1523,8 @@ int main() {
     }
 
     int field1, field2, field3;
-    int i = 0;
     while (inputFile >> field1 >> field2 >> field3) {
-        if(i++ % 10000 == 0){
-            db.insert(field1, field2, field3);
-        }
+        db.insert(field1, field2, field3);
     }
     Role regularRole("Regular", 1);
     Role moderatorRole("Moderator", 2);
@@ -1531,12 +1536,40 @@ int main() {
 
     auto start = std::chrono::high_resolution_clock::now();
 
-    db.executeQueries(user_nkim337);
+    db.executeQueries(user_regular);
 
     auto end = std::chrono::high_resolution_clock::now();
 
     // Calculate and print the elapsed time
     std::chrono::duration<double> elapsed = end - start;
+    std::cout << "Elapsed time: " << 
+    std::chrono::duration_cast<std::chrono::microseconds>(elapsed).count() 
+          << " microseconds" << std::endl;
+
+    std::cout<<"-------------------------------------------------"<<std::endl;
+
+    start = std::chrono::high_resolution_clock::now();
+
+    db.executeQueries(user_moderator);
+
+    end = std::chrono::high_resolution_clock::now();
+
+    // Calculate and print the elapsed time
+    elapsed = end - start;
+    std::cout << "Elapsed time: " << 
+    std::chrono::duration_cast<std::chrono::microseconds>(elapsed).count() 
+          << " microseconds" << std::endl;
+
+    std::cout<<"-------------------------------------------------"<<std::endl;
+    
+    start = std::chrono::high_resolution_clock::now();
+
+    db.executeQueries(user_nkim337);
+
+    end = std::chrono::high_resolution_clock::now();
+
+    // Calculate and print the elapsed time
+    elapsed = end - start;
     std::cout << "Elapsed time: " << 
     std::chrono::duration_cast<std::chrono::microseconds>(elapsed).count() 
           << " microseconds" << std::endl;
